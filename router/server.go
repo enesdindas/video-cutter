@@ -48,6 +48,7 @@ func routerEngine(mode *string) *gin.Engine {
 			"/ping",
 		}),
 	))
+	r.SetTrustedProxies(nil)
 	r.Use(gin.Recovery())
 	r.Use(VersionMiddleware())
 
