@@ -81,7 +81,6 @@ func versionHandler(c *gin.Context) {
 }
 
 func postCutter(c *gin.Context) {
-	log.Error().Msg("postCutter")
 	request := c.Request
 	file, fileHeader, err := request.FormFile("videoFile")
 	if err != nil {
