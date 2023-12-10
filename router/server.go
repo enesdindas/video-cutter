@@ -1,9 +1,12 @@
 package router
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 
 	"github.com/gin-contrib/logger"
 	"github.com/gin-gonic/gin"
@@ -78,9 +81,27 @@ func versionHandler(c *gin.Context) {
 }
 
 func postCutter(c *gin.Context) {
-	fmt.Println("postCutter")
-	fmt.Println(c.Request.Body)
-	c.JSON(200, gin.H{
-		"message": "pong",
+	request := c.Request
+	file, fileHeader, err := request.FormFile("videoFile")
+	if err != nil {
+		log.Logger.Debug().Msg(err.Error())
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	defer file.Close()
+	var buf bytes.Buffer
+	io.Copy(&buf, file)
+	fileName := fileHeader.Filename
+	fileSize := fileHeader.Size
+	fileExt := filepath.Ext(fileName)
+	if fileExt != ".mp4" {
+		log.Logger.Debug().Msg("File extension is not mp4")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "File extension is not mp4"})
+		return
+	}
+	log.Debug().Msg("File Name:" + fileHeader.Filename)
+	c.JSON(http.StatusOK, gin.H{
+		"filename": fileName,
+		"filesize": fileSize,
 	})
 }
