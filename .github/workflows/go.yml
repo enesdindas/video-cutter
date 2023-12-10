@@ -20,9 +20,6 @@ jobs:
       with:
         go-version: ${{ matrix.go-version }}
 
-    - name: Display Go version
-        run: go version
-
     - name: Build
       run: go build -v ./...
 
