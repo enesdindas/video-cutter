@@ -35,7 +35,7 @@ func main() {
 	)
 
 	flag.BoolVar(&showVersion, "version", false, "Print version information.")
-	flag.BoolVar(&showVersion, "V", false, "Print version information")
+	flag.BoolVar(&showVersion, "V", false, "Print version information.")
 	flag.StringVar(&port, "p", "", "port number for")
 	flag.StringVar(&port, "port", "", "port number for")
 	flag.StringVar(&mode, "m", "release", "Set server mode.")
