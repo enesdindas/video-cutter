@@ -1,2 +1,4 @@
 # videoCutter
-Video Cutter cuts your videos with the seconds between you want and downloads it automatically.
+I am building a tool that I could use for cutting zoom recordings :D
+
+It will be available both in as CLI and rest API.
