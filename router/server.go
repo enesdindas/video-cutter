@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	ffmpeg_wrapper "ns/video-cutter/ffmpeg_wrapper"
 	"os"
 	"path/filepath"
 
@@ -89,6 +90,21 @@ func postCutter(c *gin.Context) {
 		return
 	}
 	defer file.Close()
+	jsonOutput, err := ffmpeg_wrapper.GetJsonOutput(file)
+	// start := "00:00:00"
+	// end := "00:00:10"
+	// writer := bytes.NewBuffer(nil)
+	// if cutVideoErr := ffmpeg_wrapper.CutVideo(file, writer, start, end); cutVideoErr != nil {
+	// 	log.Logger.Debug().Msg(cutVideoErr.Error())
+	// 	c.JSON(http.StatusBadRequest, gin.H{"error": cutVideoErr.Error()})
+	// 	return
+	// }
+	if err != nil {
+		log.Logger.Debug().Msg(err.Error())
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	log.Debug().Msg(jsonOutput)
 	var buf bytes.Buffer
 	io.Copy(&buf, file)
 	fileName := fileHeader.Filename
