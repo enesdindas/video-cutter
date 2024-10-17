@@ -10,7 +10,25 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-func GetJsonOutput(reader io.Reader) (string, error) {
+// ExecuteFFCommand executes an FFmpeg or FFprobe command with the given arguments
+func ExecuteFFCommand(cmdName string, args []string, reader io.Reader, writer io.Writer) error {
+	ctx := context.Background()
+	cmd := exec.CommandContext(ctx, cmdName, args...)
+	cmd.Stdin = reader
+	cmd.Stdout = writer
+	stdErrBuf := bytes.NewBuffer(nil)
+	cmd.Stderr = stdErrBuf
+
+	err := cmd.Run()
+	if err != nil {
+		log.Error().Str("command", cmdName).Err(err).Msg("Command execution failed")
+		return fmt.Errorf("%s error: %w\nStderr: %s", cmdName, err, stdErrBuf.String())
+	}
+	return nil
+}
+
+// GetJSONOutput retrieves JSON output from FFprobe
+func GetJSONOutput(reader io.Reader) (string, error) {
 	args := []string{
 		"-v", "quiet",
 		"-print_format", "json",
@@ -19,70 +37,33 @@ func GetJsonOutput(reader io.Reader) (string, error) {
 		"-show_error",
 		"-",
 	}
-	ctx := context.Background()
-	cmd := exec.CommandContext(ctx, "ffprobe", args...)
-	cmd.Stdin = reader
 	buf := bytes.NewBuffer(nil)
-	stdErrBuf := bytes.NewBuffer(nil)
-	cmd.Stdout = buf
-	cmd.Stderr = stdErrBuf
-	err := cmd.Run()
+	err := ExecuteFFCommand("ffprobe", args, reader, buf)
 	if err != nil {
-		log.Error().Msg("Error: " + err.Error())
-		return "", fmt.Errorf("[%s] %w", string(stdErrBuf.Bytes()), err)
+		return "", fmt.Errorf("failed to get JSON output: %w", err)
 	}
-	bytes := string(buf.Bytes())
-	return string(bytes), nil
+	return buf.String(), nil
 }
 
-func CutVideo(reader io.Reader, writer io.Writer, start string, end string) error {
+func CutVideo(inputFile, outputFile, start, end, outputFormat string) error {
 	args := []string{
-		"-v", "quiet",
 		"-ss", start,
+		"-i", inputFile,
 		"-to", end,
-		"-c:v", "copy",
-		"-c:a", "copy",
-		"-f", "mp4",
-		"-loglevel", "error",
-		"-y",
-		"./output.mp4",
-		// "-i", "/Users/enes.dindas/Downloads/SampleVideo_1280x720_30mb.mp4",
+		"-c:v", "libx264", // Use libx264 for video encoding
+		"-c:a", "aac",     // Use AAC for audio encoding
+		outputFile,
 	}
-	ctx := context.Background()
-	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
-	cmd.Stdin = reader
-	cmd.Stdout = writer
-	stdErrBuf := bytes.NewBuffer(nil)
-	cmd.Stderr = stdErrBuf
-	log.Debug().Msg("Command: " + cmd.String())
-	err := cmd.Run()
-	if err != nil {
-		log.Error().Msg("Command Execution Error: " + err.Error())
-		return fmt.Errorf("[%s] %w", string(stdErrBuf.Bytes()), err)
-	}
-	return nil
+	return ExecuteFFCommand("ffmpeg", args, nil, nil)
 }
 
-func CutVideoWithDuration(reader io.Reader, writer io.Writer, start string, duration string) error {
+func CutVideoWithDuration(inputFile, outputFile, start, duration, outputFormat string) error {
 	args := []string{
-		"-v", "quiet",
+		"-i", inputFile,
 		"-ss", start,
 		"-t", duration,
-		"-i", "-",
 		"-c", "copy",
-		"-f", "mp4",
-		"-",
+		outputFile,
 	}
-	ctx := context.Background()
-	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
-	cmd.Stdin = reader
-	cmd.Stdout = writer
-	stdErrBuf := bytes.NewBuffer(nil)
-	cmd.Stderr = stdErrBuf
-	err := cmd.Run()
-	if err != nil {
-		log.Error().Msg("Error: " + err.Error())
-		return fmt.Errorf("[%s] %w", string(stdErrBuf.Bytes()), err)
-	}
-	return nil
+	return ExecuteFFCommand("ffmpeg", args, nil, nil)
 }

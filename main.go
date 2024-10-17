@@ -1,110 +1,86 @@
 package main
 
 import (
-	"context"
-	"flag"
 	"fmt"
-	"net"
-	"net/http"
-	"ns/video-cutter/router"
 	"os"
-	"time"
+	"path/filepath"
+	"strings"
 
-	"github.com/gin-gonic/gin"
+	"github.com/urfave/cli/v2"
+	"ns/video-cutter/ffmpeg_wrapper"
 )
 
-// Version control for notify.
 var version = "No Version Provided"
 
-var usageStr = `
-Usage: video-cutter [options]
-
-Server Options:
-    -p, --port <port>                Use port for clients (default: 8088)
-    --ping                           healthy check command for container
-    -h, --help                       Show this message
-    -V, --version                    Show version
-`
-
 func main() {
-	var (
-		ping        bool
-		port        string
-		showVersion bool
-		mode        string
-	)
-
-	flag.BoolVar(&showVersion, "version", false, "Print version information.")
-	flag.BoolVar(&showVersion, "V", false, "Print version information.")
-	flag.StringVar(&port, "p", "8080", "port number for")
-	flag.StringVar(&port, "port", "8080", "port number for")
-	flag.StringVar(&mode, "m", "release", "Set server mode.")
-	flag.StringVar(&mode, "mode", "release", "Set server mode.")
-	flag.BoolVar(&ping, "ping", false, "ping server")
-
-	flag.Usage = usage
-	flag.Parse()
-	router.SetVersion(version)
-
-	// Show version and exit
-	if showVersion {
-		router.PrintVersion()
-		os.Exit(0)
+	app := &cli.App{
+		Name:    "video-cutter",
+		Usage:   "Cut video files (supports MP4 and MOV)",
+		Version: version,
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:    "start",
+				Aliases: []string{"s"},
+				Usage:   "Start time for cutting (format: HH:MM:SS)",
+			},
+			&cli.StringFlag{
+				Name:    "end",
+				Aliases: []string{"e"},
+				Usage:   "End time for cutting (format: HH:MM:SS)",
+			},
+			&cli.StringFlag{
+				Name:    "duration",
+				Aliases: []string{"d"},
+				Usage:   "Duration of the cut (format: HH:MM:SS)",
+			},
+		},
+		Action: runCutVideo,
 	}
 
-	if ping {
-		if err := pinger(&port); err != nil {
-			fmt.Errorf("failed to ping server: %v", err)
-		}
-		fmt.Println("ping success")
-		os.Exit(0)
+	if err := app.Run(os.Args); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
 	}
-
-	router.RunHTTPServer(&port, &mode)
 }
 
-func usage() {
-	fmt.Printf("%s\n", usageStr)
-}
+func runCutVideo(c *cli.Context) error {
+	if c.NArg() != 2 {
+		return fmt.Errorf("please provide input and output file paths")
+	}
 
-// handles pinging the endpoint and returns an error if the
-// agent is in an unhealthy state.
-func pinger(port *string) error {
-	transport := &http.Transport{
-		Dial: (&net.Dialer{
-			Timeout: 5 * time.Second,
-		}).Dial,
-		TLSHandshakeTimeout: 5 * time.Second,
+	inputFile := c.Args().Get(0)
+	outputFile := c.Args().Get(1)
+	start := c.String("start")
+	end := c.String("end")
+	duration := c.String("duration")
+
+	if err := cutVideo(inputFile, outputFile, start, end, duration); err != nil {
+		return fmt.Errorf("error cutting video: %v", err)
 	}
-	client := &http.Client{
-		Timeout:   time.Second * 10,
-		Transport: transport,
-	}
-	req, _ := http.NewRequestWithContext(
-		context.Background(),
-		http.MethodGet,
-		"http://localhost:"+*port+"/ping",
-		nil,
-	)
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("server returned non-200 status code")
-	}
+
+	fmt.Println("Video cut successfully!")
 	return nil
 }
 
-func SetupRouter() *gin.Engine {
-	router := gin.Default()
+func cutVideo(inputFile, outputFile, start, end, duration string) error {
+	// Determine output format based on file extension
+	outputFormat := "mp4"
+	if strings.ToLower(filepath.Ext(outputFile)) == ".mov" {
+		outputFormat = "mov"
+	}
 
-	router.GET("/ping", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"message": "pong",
-		})
-	})
+	var err error
+	if duration != "" {
+		err = ffmpeg_wrapper.CutVideoWithDuration(inputFile, outputFile, start, duration, outputFormat)
+	} else if start != "" && end != "" {
+		err = ffmpeg_wrapper.CutVideo(inputFile, outputFile, start, end, outputFormat)
+	} else {
+		return fmt.Errorf("invalid time parameters")
+	}
 
-	return router
+	if err != nil {
+		return fmt.Errorf("ffmpeg error: %v", err)
+	}
+
+	return nil
 }
